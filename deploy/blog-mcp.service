@@ -1,0 +1,25 @@
+[Unit]
+Description=blog-mcp - MCP server for the posts database
+After=network.target
+
+[Service]
+Type=simple
+User=blog-mcp
+Group=blog-mcp
+WorkingDirectory=/opt/blog-mcp
+EnvironmentFile=/opt/blog-mcp/.env
+ExecStart=/usr/bin/node /opt/blog-mcp/dist/index.js
+Restart=on-failure
+RestartSec=5
+
+# Hardening: no reason this process needs anything beyond a network socket
+# and its own working directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/blog-mcp
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
