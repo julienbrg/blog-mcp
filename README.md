@@ -51,6 +51,16 @@ pnpm build && pnpm start
 pnpm dev
 ```
 
+### Running the tests
+
+```bash
+pnpm test
+```
+
+Runs the full suite via Node's built-in test runner (`node:test`, through
+`tsx --test`). No database connection or network access is required — `pg`'s
+`pool.query` is mocked in `test/db.test.ts` and `test/tools.test.ts`.
+
 ### Testing with curl
 
 ```bash
