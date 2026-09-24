@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { requireBearerToken } from "./auth.js";
+import { pool } from "./db.js";
+import { classifyError } from "./errors.js";
 import { registerTools } from "./tools.js";
 
 function buildServer(): McpServer {
@@ -42,6 +44,17 @@ export function createApp() {
           id: null,
         });
       }
+    }
+  });
+
+  // Unauthenticated, but nginx only forwards `= /mcp`, so this is reachable
+  // from the box itself only.
+  app.get("/health", async (_req, res) => {
+    try {
+      await pool.query("select 1");
+      res.json({ db: "ok" });
+    } catch (err) {
+      res.status(503).json({ db: "error", reason: classifyError(err).category });
     }
   });
 
