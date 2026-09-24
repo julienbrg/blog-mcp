@@ -12,3 +12,11 @@ All notable changes to this project are documented in this file.
 - `docs/DATABASE_REQUIREMENTS.md` documenting the required `posts` table
   schema, minimum role privileges, and connection requirements for a fresh
   Postgres instance.
+- README section on connecting non-Claude MCP clients (OpenAI, Mistral,
+  Qwen), plus an honest note that DeepSeek has no native remote-MCP tool
+  yet.
+
+### Changed
+
+- Public domain updated from `mcp.w3hc.org` to `blog.mcp.w3hc.org`
+  throughout the README (nginx block, `ALLOWED_HOSTS`, client examples).
