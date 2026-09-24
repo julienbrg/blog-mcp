@@ -1,3 +1,5 @@
+import { checkDatabase } from "./db.js";
+import { classifyError, redact } from "./errors.js";
 import { createApp } from "./server.js";
 
 const PORT = Number(process.env.PORT ?? 3939);
@@ -9,6 +11,15 @@ if (!process.env.DATABASE_URL) {
 }
 if (!process.env.MCP_BEARER_TOKEN) {
   console.error("MCP_BEARER_TOKEN is not set");
+  process.exit(1);
+}
+
+try {
+  await checkDatabase();
+} catch (err) {
+  const { category } = classifyError(err);
+  const reason = redact(err instanceof Error ? err.message : String(err));
+  console.error(`Database check failed (${category}): ${reason}`);
   process.exit(1);
 }
 
