@@ -15,6 +15,8 @@ All notable changes to this project are documented in this file.
 - README section on connecting non-Claude MCP clients (OpenAI, Mistral,
   Qwen), plus an honest note that DeepSeek has no native remote-MCP tool
   yet.
+- CI workflow (`.github/workflows/ci.yml`) running `pnpm build` and
+  `pnpm test` on push and pull request to `main`.
 
 ### Changed
 
