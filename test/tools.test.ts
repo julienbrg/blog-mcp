@@ -1,4 +1,4 @@
-import { test, describe, mock, afterEach } from "node:test";
+import { test, describe, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -21,6 +21,21 @@ function parseJsonContent(result: CallToolResult): unknown {
   assert.equal(first?.type, "text");
   return JSON.parse((first as { text: string }).text);
 }
+
+function textContent(result: CallToolResult): string {
+  return (result.content[0] as { text: string }).text;
+}
+
+function failWith(code: string) {
+  return async () => {
+    throw Object.assign(new Error(`raw ${code} from db.internal`), { code });
+  };
+}
+
+beforeEach(() => {
+  mock.method(console, "log", () => {});
+  mock.method(console, "error", () => {});
+});
 
 afterEach(() => {
   mock.restoreAll();
@@ -79,5 +94,33 @@ describe("MCP tools", () => {
     const client = await connectedClient();
     const result = (await client.callTool({ name: "posts_upsert", arguments: { slug: "hello" } })) as CallToolResult;
     assert.equal(result.isError, true);
+  });
+
+  test("posts_list reports a translated isError on auth failure", async () => {
+    mock.method(pool, "query", failWith("28P01"));
+    const client = await connectedClient();
+    const result = (await client.callTool({ name: "posts_list", arguments: {} })) as CallToolResult;
+    assert.equal(result.isError, true);
+    assert.equal(textContent(result), "Database authentication failed (server misconfiguration)");
+  });
+
+  test("posts_latest reports a translated isError when the database is unreachable", async () => {
+    mock.method(pool, "query", failWith("ECONNREFUSED"));
+    const client = await connectedClient();
+    const result = (await client.callTool({ name: "posts_latest", arguments: { prefix: "a-" } })) as CallToolResult;
+    assert.equal(result.isError, true);
+    assert.equal(textContent(result), "Database unreachable, retry later");
+  });
+
+  test("posts_upsert reports a translated isError for a bad date", async () => {
+    mock.method(pool, "query", failWith("22007"));
+    const client = await connectedClient();
+    const result = (await client.callTool({
+      name: "posts_upsert",
+      arguments: { slug: "hello", title: "Hello", content: "Body", date: "tomorrow" },
+    })) as CallToolResult;
+    assert.equal(result.isError, true);
+    assert.equal(textContent(result), "Invalid date: expected YYYY-MM-DD");
+    assert.doesNotMatch(JSON.stringify(result), /raw|db\.internal/);
   });
 });
