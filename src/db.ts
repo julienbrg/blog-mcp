@@ -1,9 +1,24 @@
 import { Pool } from "pg";
+import { redact } from "./errors.js";
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 3,
+  connectionTimeoutMillis: 5000,
+  statement_timeout: 10000,
 });
+
+// An idle client whose connection drops emits 'error' on the pool. Without a
+// listener Node treats it as unhandled and exits; the pool already discards
+// that client, so the next query simply opens a fresh connection.
+pool.on("error", (err) => {
+  console.error("Idle database connection error:", redact(err.message));
+});
+
+// Exercises credentials, network, TLS and the presence of the posts table.
+export async function checkDatabase(): Promise<void> {
+  await pool.query("select 1 from posts limit 1");
+}
 
 export interface Post {
   slug: string;

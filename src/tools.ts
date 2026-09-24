@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { latestPost, listPosts, upsertPost } from "./db.js";
+import { withErrors } from "./errors.js";
 
 function jsonResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
@@ -17,10 +18,10 @@ export function registerTools(server: McpServer): void {
         limit: z.number().int().min(1).max(100).default(20).describe("Max number of posts to return"),
       },
     },
-    async ({ prefix, limit }) => {
+    withErrors("posts_list", async ({ prefix, limit }) => {
       const rows = await listPosts(prefix, limit);
       return jsonResult(rows);
-    },
+    }),
   );
 
   server.registerTool(
@@ -32,10 +33,10 @@ export function registerTools(server: McpServer): void {
         prefix: z.string().describe("Slug prefix to match, e.g. 'ethereum-daily-'"),
       },
     },
-    async ({ prefix }) => {
+    withErrors("posts_latest", async ({ prefix }) => {
       const row = await latestPost(prefix);
       return jsonResult(row ?? { found: false });
-    },
+    }),
   );
 
   server.registerTool(
@@ -58,9 +59,9 @@ export function registerTools(server: McpServer): void {
         unlisted: z.boolean().default(false),
       },
     },
-    async (input) => {
+    withErrors("posts_upsert", async (input) => {
       const row = await upsertPost(input);
       return jsonResult(row);
-    },
+    }),
   );
 }

@@ -1,10 +1,12 @@
-import { test, describe, beforeEach, afterEach } from "node:test";
+import { test, describe, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import type { Request, Response } from "express";
 import { requireBearerToken } from "../src/auth.js";
 
 function fakeReq(authorization?: string): Request {
   return {
+    method: "POST",
+    path: "/mcp",
     header: (name: string) => (name.toLowerCase() === "authorization" ? authorization : undefined),
   } as unknown as Request;
 }
@@ -30,9 +32,12 @@ describe("requireBearerToken", () => {
 
   beforeEach(() => {
     process.env.MCP_BEARER_TOKEN = "correct-token";
+    mock.method(console, "log", () => {});
   });
 
   afterEach(() => {
+    mock.restoreAll();
+    mock.timers.reset();
     if (ORIGINAL_TOKEN === undefined) delete process.env.MCP_BEARER_TOKEN;
     else process.env.MCP_BEARER_TOKEN = ORIGINAL_TOKEN;
   });
@@ -78,5 +83,20 @@ describe("requireBearerToken", () => {
     const res = fakeRes();
     requireBearerToken(req, res, () => assert.fail("next should not be called"));
     assert.equal(res.statusCode, 500);
+  });
+
+  test("logs at most one 401 line per minute and counts the rest", () => {
+    mock.timers.enable({ apis: ["Date"], now: Date.now() + 3_600_000 });
+    const log = mock.method(console, "log", () => {});
+    const reject = () => requireBearerToken(fakeReq("Bearer wrong-token"), fakeRes(), () => {});
+    reject();
+    reject();
+    reject();
+    assert.equal(log.mock.calls.length, 1);
+    assert.match(log.mock.calls[0]!.arguments[0] as string, /^401 POST \/mcp/);
+    mock.timers.tick(60_000);
+    reject();
+    assert.equal(log.mock.calls.length, 2);
+    assert.equal(log.mock.calls[1]!.arguments[0], "401 POST /mcp (+2 suppressed)");
   });
 });

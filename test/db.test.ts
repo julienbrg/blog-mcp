@@ -1,9 +1,36 @@
 import { test, describe, mock, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { pool, listPosts, latestPost, upsertPost } from "../src/db.js";
+import { pool, checkDatabase, listPosts, latestPost, upsertPost } from "../src/db.js";
 
 afterEach(() => {
   mock.restoreAll();
+});
+
+describe("pool", () => {
+  test("has an 'error' listener so a dropped idle connection doesn't crash the process", () => {
+    assert.ok(pool.listenerCount("error") >= 1);
+  });
+
+  test("bounds connect and statement time", () => {
+    assert.equal(pool.options.connectionTimeoutMillis, 5000);
+    assert.equal((pool.options as { statement_timeout?: number }).statement_timeout, 10000);
+  });
+});
+
+describe("checkDatabase", () => {
+  test("queries the posts table", async () => {
+    const queryMock = mock.method(pool, "query", async () => ({ rows: [] }));
+    await checkDatabase();
+    assert.match(queryMock.mock.calls[0]!.arguments[0] as string, /from posts/);
+  });
+
+  test("rejects with the database error", async () => {
+    const error = Object.assign(new Error("password authentication failed"), { code: "28P01" });
+    mock.method(pool, "query", async () => {
+      throw error;
+    });
+    await assert.rejects(checkDatabase(), error);
+  });
 });
 
 describe("listPosts", () => {
