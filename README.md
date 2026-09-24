@@ -133,10 +133,10 @@ the `Authorization` header to `Bearer <your token>` in its auth settings.
    ```nginx
    server {
        listen 443 ssl http2;
-       server_name mcp.w3hc.org;
+       server_name blog.mcp.w3hc.org;
 
-       ssl_certificate     /etc/letsencrypt/live/mcp.w3hc.org/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/mcp.w3hc.org/privkey.pem;
+       ssl_certificate     /etc/letsencrypt/live/blog.mcp.w3hc.org/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/blog.mcp.w3hc.org/privkey.pem;
 
        location /mcp {
            proxy_pass http://127.0.0.1:3939/mcp;
@@ -148,15 +148,92 @@ the `Authorization` header to `Bearer <your token>` in its auth settings.
    }
    ```
    Because `proxy_set_header Host $host;` forwards the public hostname, set
-   `ALLOWED_HOSTS=mcp.w3hc.org` (plus `localhost,127.0.0.1,[::1]` for local
+   `ALLOWED_HOSTS=blog.mcp.w3hc.org` (plus `localhost,127.0.0.1,[::1]` for local
    testing) in `.env` — otherwise the SDK's DNS-rebinding protection will
    403 every proxied request. Restart the service after changing `.env`:
    ```bash
    sudo systemctl restart blog-mcp
    ```
 
-5. **Register the connector in Claude:** add a custom connector with URL
-   `https://mcp.w3hc.org/mcp` and the bearer token from `.env`.
+5. **Register the connector with your MCP client.** The server is a
+   standard MCP endpoint (Streamable HTTP, bearer auth) — it isn't tied to
+   any one provider. See [Connecting a client](#connecting-a-client) below
+   for Claude, OpenAI, Mistral, and Qwen.
+
+## Connecting a client
+
+This server speaks plain MCP over Streamable HTTP with a bearer token — no
+Claude-specific behavior anywhere in `src/`. Any MCP-compatible client can
+call it; the config shape just differs per provider.
+
+### Claude
+
+Claude Desktop, Claude.ai, and Claude Code all support custom connectors:
+add one with URL `https://blog.mcp.w3hc.org/mcp` and the bearer token from
+`.env`.
+
+### OpenAI
+
+The Responses API has a native `mcp` tool type:
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+response = client.responses.create(
+    model="gpt-5",
+    input="List the 5 most recent posts",
+    tools=[{
+        "type": "mcp",
+        "server_label": "blog-mcp",
+        "server_url": "https://blog.mcp.w3hc.org/mcp",
+        "headers": {"Authorization": "Bearer <MCP_BEARER_TOKEN>"},
+        "require_approval": "never",
+    }],
+)
+```
+
+### Mistral
+
+In Mistral Studio: **Connectors → Add Connector → Custom MCP Connector**,
+then set the URL to `https://blog.mcp.w3hc.org/mcp` and add a static header
+`Authorization: Bearer <MCP_BEARER_TOKEN>`. Mistral requires the token to
+be entered in Studio itself — it doesn't support passing it
+programmatically per request.
+
+### Qwen
+
+[Qwen Code](https://qwenlm.github.io/qwen-code-docs/) supports remote MCP
+servers over HTTP. In `.qwen/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "blog-mcp": {
+      "httpUrl": "https://blog.mcp.w3hc.org/mcp",
+      "headers": { "Authorization": "Bearer <MCP_BEARER_TOKEN>" }
+    }
+  }
+}
+```
+
+or via the CLI:
+
+```bash
+qwen mcp add --transport http blog-mcp https://blog.mcp.w3hc.org/mcp \
+  --header "Authorization: Bearer <MCP_BEARER_TOKEN>"
+```
+
+### DeepSeek
+
+DeepSeek's API (chat completions and Responses API) has no native remote-MCP
+tool as of this writing — its Responses API explicitly ignores the `mcp`
+tool type. To use this server from DeepSeek, put an MCP-aware host in
+between: an agent framework (e.g. LangChain's MCP adapter) or a coding CLI
+that owns the MCP connection while delegating generation to
+`deepseek-chat`/`deepseek-reasoner` as the backend model. There's no direct
+provider-to-server config to hand you here — check back as DeepSeek's API
+evolves.
 
 ## Operations
 
