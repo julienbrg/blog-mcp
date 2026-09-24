@@ -97,14 +97,16 @@ Don't put the token in the URL (for example `?token=…`). URLs end up in logs a
 
 ## Troubleshooting
 
-Start by checking the endpoint from any terminal, independently of Claude:
+Start by checking the endpoint from any terminal, independently of Claude. This calls `posts_list`, so it tests the database too, not just the token:
 
 ```bash
 curl -s -X POST https://blog.mcp.w3hc.org/mcp \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"posts_list","arguments":{"limit":1}}}'
 ```
+
+On the VPS itself, `curl -s 127.0.0.1:3939/health` checks only the database connection and returns `{"db":"ok"}` or a 503 with a `reason`.
 
 | Symptom | Likely cause |
 | --- | --- |
@@ -112,7 +114,13 @@ curl -s -X POST https://blog.mcp.w3hc.org/mcp \
 | 401 from curl as well | Wrong token, or the server's `.env` changed. Compare against `.env` on the server, then run `pm2 restart blog-mcp`. |
 | 403 | `blog.mcp.w3hc.org` is missing from `ALLOWED_HOSTS` in `.env`. |
 | 404 | Wrong path: it must be exactly `/mcp`. |
-| 502 | The process is down. Check `pm2 ls` and `pm2 logs blog-mcp`. |
+| 502 | The process is down. Check `pm2 ls` and `pm2 logs blog-mcp`. The server exits at startup if it can't reach the database, and the log says why (`Database check failed (auth): …`). |
+| `Database authentication failed (server misconfiguration)` | `DATABASE_URL` in `.env` has the wrong user or password. Fix it, then run `pm2 restart blog-mcp`. |
+| `Database unreachable, retry later` | Postgres is down, or the host or port in `DATABASE_URL` is wrong. |
+| `Database query timed out` | A query ran for more than 10 seconds. |
+| `Invalid date: expected YYYY-MM-DD` | `posts_upsert` got a `date` that Postgres can't parse. |
+| `Rejected by database constraint: <name>` | The post breaks a rule in the `posts` table, such as a `NOT NULL` or `CHECK`. |
+| `Internal error (ref <id>)` | Anything else. Search `pm2 logs blog-mcp` for `ref=<id>` to find the full error. |
 
 After you [rotate the token](../README.md#operations), remove the connector and add it again with the new value, because headers can't be edited.
 

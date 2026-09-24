@@ -237,7 +237,20 @@ evolves.
 
 ## Operations
 
-- Logs: `journalctl -u blog-mcp -f`
+- Logs: `journalctl -u blog-mcp -f`. Each tool call logs one line
+  (`tool=posts_list result=ok duration=12ms`, or `result=error:<category>`
+  with a `ref=<id>` for unexpected errors, matching the id the client sees).
+  Rejected tokens log at most one `401` line per minute.
+- Startup check: the server runs `select 1 from posts limit 1` before
+  listening and exits with code 1 if it fails, logging a one-line reason with
+  the password redacted, e.g. `Database check failed (auth): password
+  authentication failed for user "website"`. A bad `.env` therefore shows up
+  as a failed unit rather than as silently failing tool calls.
+- Health: `curl -s 127.0.0.1:3939/health` on the VPS returns
+  `200 {"db":"ok"}` or `503 {"db":"error","reason":"auth|unreachable|timeout"}`.
+  It needs no token, and nginx only forwards `/mcp`, so it isn't public. It
+  goes through the same `ALLOWED_HOSTS` check as `/mcp`, so keep `127.0.0.1`
+  in that list (or pass `-H "Host: blog.mcp.w3hc.org"`).
 - Restart: `sudo systemctl restart blog-mcp`
 - Token rotation: generate a new one (`openssl rand -hex 32`), update
   `.env`, restart, update the connector config in Claude. No fixed cadence
