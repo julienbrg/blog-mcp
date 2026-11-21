@@ -36,3 +36,9 @@ All notable changes to this project are documented in this file.
 
 - Public domain updated from `mcp.w3hc.org` to `blog.mcp.w3hc.org`
   throughout the README (nginx block, `ALLOWED_HOSTS`, client examples).
+
+### Fixed
+
+- Request bodies over 100 KB, such as a long post sent to `posts_upsert`,
+  were rejected with HTTP 413. The JSON body limit is now 1 MB, matching
+  nginx's default `client_max_body_size`.

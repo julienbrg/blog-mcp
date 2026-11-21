@@ -154,6 +154,10 @@ the `Authorization` header to `Bearer <your token>` in its auth settings.
    ```bash
    sudo systemctl restart blog-mcp
    ```
+   The server accepts request bodies up to 1 MB, the same as nginx's default
+   `client_max_body_size`. To allow larger posts, raise both: the
+   `express.json` limit in `src/server.ts` and `client_max_body_size` in this
+   block.
 
 5. **Register the connector with your MCP client.** The server is a
    standard MCP endpoint (Streamable HTTP, bearer auth) — it isn't tied to

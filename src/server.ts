@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
+import { hostHeaderValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
+import express from "express";
 import { requireBearerToken } from "./auth.js";
 import { pool } from "./db.js";
 import { classifyError } from "./errors.js";
@@ -21,7 +22,13 @@ const allowedHosts = (process.env.ALLOWED_HOSTS ?? "localhost,127.0.0.1,[::1]")
   .filter(Boolean);
 
 export function createApp() {
-  const app = createMcpExpressApp({ allowedHosts });
+  // Built by hand rather than with the SDK's createMcpExpressApp, whose
+  // express.json() is stuck at Express's 100 KB default. Same order: the Host
+  // check runs first, so a disallowed Host gets 403 before the body is read.
+  // 1 MB matches nginx's default client_max_body_size.
+  const app = express();
+  app.use(hostHeaderValidation(allowedHosts));
+  app.use(express.json({ limit: "1mb" }));
 
   // Stateless: every request gets a fresh server + transport pair, used once
   // and torn down. No session state is kept between calls.
